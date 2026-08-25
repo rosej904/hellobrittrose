@@ -1,0 +1,28 @@
+/*
+  THEME
+  -----
+  Everything visual about the site is controlled from this one file.
+  Swap any value below and the whole site updates — no component
+  changes needed. This is the file to hand off when picking a look.
+*/
+
+:root {
+  /* Palette */
+  --color-bg: #fbf6f2; /* page background */
+  --color-surface: #ffffff; /* link card background */
+  --color-text: #2b1a1f; /* primary text */
+  --color-text-muted: #7a6169; /* bio / footer text */
+  --color-accent: #b5495b; /* avatar fill, hover states, divider dot */
+  --color-accent-text: #ffffff; /* text on top of the accent color */
+  --color-border: #ede0db; /* card borders, divider lines */
+
+  /* Typography */
+  --font-display: 'Fraunces', Georgia, serif; /* name / headline */
+  --font-body: 'Inter', system-ui, sans-serif; /* everything else */
+
+  /* Shape & spacing */
+  --radius-lg: 20px; /* link card corners */
+  --radius-full: 999px; /* avatar */
+  --shadow-link: 0 1px 2px rgba(43, 26, 31, 0.06), 0 1px 1px rgba(43, 26, 31, 0.04);
+  --content-width: 420px; /* max width of the centered column */
+}

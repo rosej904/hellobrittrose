@@ -1,0 +1,99 @@
+const S3_ORIGIN = "${s3_origin}";
+const CONFIG_KEY = "site-config";
+
+// Fallback content used only if KV has never been written to yet.
+// Terraform never manages this value directly -- see main.tf notes.
+const DEFAULT_CONFIG = {
+  theme: {
+    colorBg: "#fbf6f2",
+    colorSurface: "#ffffff",
+    colorText: "#2b1a1f",
+    colorTextMuted: "#7a6169",
+    colorAccent: "#b5495b",
+    colorAccentText: "#ffffff",
+    colorBorder: "#ede0db",
+    fontPair: "warm",
+    radiusLg: "20px",
+  },
+  profile: {
+    name: "Britt Rose",
+    initials: "BR",
+    avatarUrl: "",
+    bio: "Placeholder bio — a line or two about who you are and what people will find below.",
+  },
+  links: [
+    { label: "TikTok Shop", url: "https://www.tiktok.com/", emoji: "🛍️" },
+    { label: "Amazon Storefront", url: "https://www.amazon.com/", emoji: "📦" },
+    { label: "Instagram", url: "https://www.instagram.com/", emoji: "📸" },
+  ],
+};
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // Root -> temporary redirect to /shop (no homepage content yet)
+    if (path === "/") {
+      return Response.redirect(url.origin + "/shop", 302);
+    }
+
+    // Public read API: anyone can fetch the current site config.
+    if (path === "/shop/api/config" && request.method === "GET") {
+      const stored = await env.SITE_CONFIG.get(CONFIG_KEY);
+      const body = stored ?? JSON.stringify(DEFAULT_CONFIG);
+      return new Response(body, {
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
+    // Protected write API. Only reachable by requests that already passed
+    // Cloudflare Access, since this path falls under /shop/admin*.
+    if (path === "/shop/admin/api/config" && request.method === "PUT") {
+      let payload;
+      try {
+        payload = await request.json();
+      } catch {
+        return new Response("Invalid JSON", { status: 400 });
+      }
+      await env.SITE_CONFIG.put(CONFIG_KEY, JSON.stringify(payload));
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Everything else under /shop (including /shop/admin) is the same
+    // React SPA build served from S3.
+    if (path === "/shop" || path.startsWith("/shop/")) {
+      let s3Path = path.replace(/^\/shop\/?/, "/");
+      if (s3Path === "/" || s3Path === "") {
+        s3Path = "/index.html";
+      }
+
+      let originResponse = await fetch(S3_ORIGIN + s3Path, {
+        cf: { cacheTtl: 300 },
+      });
+
+      // SPA fallback: extensionless sub-routes (e.g. /shop/admin) that
+      // don't exist as a literal S3 object fall back to index.html so
+      // client-side routing can take over.
+      if (originResponse.status === 404 && !s3Path.includes(".")) {
+        originResponse = await fetch(S3_ORIGIN + "/index.html", {
+          cf: { cacheTtl: 300 },
+        });
+      }
+
+      if (originResponse.status === 404) {
+        return new Response("Not Found", { status: 404 });
+      }
+
+      return new Response(originResponse.body, originResponse);
+    }
+
+    // Everything else: 404
+    return new Response("Not Found", { status: 404 });
+  },
+};
